@@ -17,6 +17,14 @@ __root="$(cd "$(dirname "${__dir}")" && pwd)"
 __file="${__dir}/$(basename "${BASH_SOURCE[0]}")"
 __base="$(basename ${__file} .sh)"
 
+# Set magic global variables for installation process
+DNAME="lvm"
+DGROUP="arch"
+LANG="it_IT.UTF-8"
+KEYMAP="it"
+CONTINENT="Europe"
+CITY="Rome"
+
 echo "ArchSecureScript (ASS) installer. by ${__editor} version ${__version}."
 echo ""
 
@@ -212,12 +220,11 @@ function format_disk(){
   echo "Format disk desactivate, not good !"
 
   #Uncomment line below to enable formatting
-  # cryptsetup open --type plain ${DISK} container --key-file /dev/random
-  # dd if=/dev/zero of=/dev/mapper/container status=progress
+  # shred --verbose --random-source=/dev/urandom --iterations=3 ${DISK}
 }
+
 function create_partitions(){
-  #It makes 3 partitions :
-  #bios_grub of 1024Kb for grub on GPT table (Without this partitions, the bootloader will not work)
+  #It makes 2 partitions :
   #boot of 400Mb for /boot
   #home of 100% free for /home
   # +-----------------------------------------------------------------------+ +----------------+
@@ -231,7 +238,7 @@ function create_partitions(){
   if [[ ${UEFI} == true ]]; then
     parted -s ${DISK}\
     mklabel gpt \
-    mkpart primary ext4 4096s 512MB \
+    mkpart primary fat32 4096s 512MB \
     mkpart primary ext4 512MB 100% \
     set 1 boot on \
     set 2 lvm on \
@@ -239,50 +246,44 @@ function create_partitions(){
     name 2 root_lvm || emergency "Something went wrong with partitioning. You can investigate. Exit 1. "
   elif [[ ${UEFI} == false ]]; then
     parted -s ${DISK}\
-    mklabel gpt \
-    mkpart primary ext4 1MB 2MB \
-    mkpart primary ext4 2MB 402MB \
-    mkpart primary ext4 402MB 100% \
-    set 1 bios_grub on \
-    set 3 lvm on \
-    name 1 bios_grub \
-    name 2 boot \
-    name 3 root_lvm || emergency "Something went wrong with partitioning. You can investigate. Exit 1. "
+    mklabel msdos \
+    mkpart primary ext4 1MB 200MB \
+    mkpart primary ext4 200MB 100% \
+    set 1 boot on \
+    set 2 lvm on \
+    name 1 boot \
+    name 2 root_lvm || emergency "Something went wrong with partitioning. You can investigate. Exit 1. "
   fi
 }
 
 function prepare_disk(){
-  if [[ ${UEFI} == true ]]; then
-    echo "${PASSWORD}" | cryptsetup -v --cipher aes-xts-plain64 luksFormat ${DISK}2 #It encrypt the LVM using LUKS format with cipher aes-xts-plain64
-    echo "${PASSWORD}" | cryptsetup open --type luks ${DISK}2 lvm #It open the lvm, the decrypted container is now available at /dev/mapper/lvm.
-  elif [[ ${UEFI} == false ]]; then
-    echo "${PASSWORD}" | cryptsetup -v --cipher aes-xts-plain64 luksFormat ${DISK}3 #It encrypt the LVM using LUKS format with cipher aes-xts-plain64
-    echo "${PASSWORD}" | cryptsetup open --type luks ${DISK}3 lvm #It open the lvm, the decrypted container is now available at /dev/mapper/lvm.
-  fi
-
+    # Encrypt the LVM using LUKS format with cipher aes-xts-plain64
+    echo "${PASSWORD}" | cryptsetup --cipher aes-xts-plain64 --key-size 512 --hash sha512 --iter-time 5000 --use-random luksFormat ${DISK}2
+    # Open the lvm, the decrypted container is now available at /dev/mapper/lvm.
+    echo "${PASSWORD}" | cryptsetup luksOpen ${DISK}2 ${DNAME}
 }
 
 function prepare_lvm(){
-  pvcreate /dev/mapper/lvm #Create a physical volume on top of the opened LUKS container
-  vgcreate storage /dev/mapper/lvm #Create the volume group named MyStorage, adding the previously created physical volume to it
+  pvcreate /dev/mapper/${DNAME} #Create a physical volume on top of the opened LUKS container
+  vgcreate ${DGROUP} /dev/mapper/${DNAME} #Create the volume group named MyStorage, adding the previously created physical volume to it
 
   #Create all logical volumes on the volume group
-  lvcreate -l 3%VG storage -n swapvol
-  lvcreate -l 25%VG storage -n rootvol
-  lvcreate -l +100%FREE storage -n homevol
+  lvcreate -l 3%VG ${DGROUP} -n swap
+  lvcreate -l 25%VG ${DGROUP} -n root
+  lvcreate -l +100%FREE ${DGROUP} -n home
 
   #Format filesystems on each logical volume
-  mkfs.ext4 /dev/mapper/storage-rootvol
-  mkfs.ext4 /dev/mapper/storage-homevol
-  mkswap /dev/mapper/storage-swapvol
+  mkfs.ext4 /dev/mapper/${DGROUP}-root
+  mkfs.ext4 /dev/mapper/${DGROUP}-home
+  mkswap /dev/mapper/${DGROUP}-swap
 }
 
 function mount_fs(){
   #Mount each filesystems
-  mount /dev/storage/rootvol /mnt
+  mount /dev/${DGROUP}/root /mnt
   mkdir /mnt/home
-  mount /dev/storage/homevol /mnt/home
-  swapon /dev/storage/swapvol
+  mount /dev/${DGROUP}/home /mnt/home
+  swapon /dev/${DGROUP}/swap
 }
 
 function prepare_boot(){
@@ -291,12 +292,11 @@ function prepare_boot(){
     mkdir -p /mnt/boot/efi
     mount ${DISK}1 /mnt/boot/efi
   elif [[ ${UEFI} == false ]]; then
-    mkfs.ext2 ${DISK}2
+    #Convert /boot to ext2 format which is the standard for MBR boot partition
+    mkfs.ext2 ${DISK}1
     mkdir /mnt/boot
-    mount ${DISK}2 /mnt/boot
+    mount ${DISK}1 /mnt/boot
   fi
-  #Convert /boot to ext2 format which is the standard for boot partition
-
 }
 
 function install_base(){
@@ -332,41 +332,43 @@ function configure(){
   local GRAPH_ENV=$7
   local UEFI=$8
   echo "Exporting timezone"
-  LANG="fr_FR.UTF-8"
-  export LANG=fr_FR.UTF-8
-  KEYMAP=fr
-  ln -s /usr/share/zoneinfo/Europe/Paris /etc/localtime
+  export LANG=${LANG}
+  sed -i 's/#${LANG}/${LANG}/g' /etc/locale.gen
+  locale-gen
+  echo "LANG=${LANG}" > /etc/locale.conf
+  echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
+  ln -s /usr/share/zoneinfo/${CONTINENT}/${CITY} /etc/localtime
 
   echo "Prepare bootloader"
-  local CRYPTDEVICE="$(blkid -s UUID -o value ${DISK}3)" #Get UUID of the encrypted device
+  local CRYPTDEVICE="$(blkid -s UUID -o value ${DISK}2)" #Get UUID of the encrypted device
   install_bootloader ${DISK} ${CRYPTDEVICE}
 
-  echo "Create basic user"
-  create_basic_user ${USERNAME} ${PASSWORD}
-
-  echo "Change Hostname"
-  change_hostname ${NEW_HOSTNAME}
-
-  echo "Adding sudo to ${USERNAME}"
-  install_sudo ${USERNAME} ${NEW_HOSTNAME}
-
-  echo "Install network manager"
-  install_network
-
-  echo "Install yaourt"
-  install_yaourt
-
-  echo "Install xorg"
-  install_xorg
-
-  echo "Install Virtualbox graphics"
-  install_graphic_drivers $VIRTUALBOX
-
-  echo "Install graphic environment"
-  install_graphic_environment ${GRAPH_ENV}
-
-  echo "Clean up installation"
-  clean_desktop
+  # echo "Create basic user"
+  # create_basic_user ${USERNAME} ${PASSWORD}
+  #
+  # echo "Change Hostname"
+  # change_hostname ${NEW_HOSTNAME}
+  #
+  # echo "Adding sudo to ${USERNAME}"
+  # install_sudo ${USERNAME} ${NEW_HOSTNAME}
+  #
+  # echo "Install network manager"
+  # install_network
+  #
+  # echo "Install yaourt"
+  # install_yaourt
+  #
+  # echo "Install xorg"
+  # install_xorg
+  #
+  # echo "Install Virtualbox graphics"
+  # install_graphic_drivers $VIRTUALBOX
+  #
+  # echo "Install graphic environment"
+  # install_graphic_environment ${GRAPH_ENV}
+  #
+  # echo "Clean up installation"
+  # clean_desktop
 }
 
 function install_bootloader(){
@@ -378,10 +380,10 @@ function install_bootloader(){
 
   #Install grub on disk
   if [[ ${UEFI} == true ]]; then
-    echo "GRUB_ENABLE_CRYPTODISK=y" >> /etc/default/grub
     sed -i 's|base udev|base udev encrypt lvm2|g' /etc/mkinitcpio.conf
     #Edit grub config to inform it where is the encrypted device and the root device
-    sed -i "s|GRUB_CMDLINE_LINUX\=\"|GRUB_CMDLINE_LINUX\=\"cryptdevice=UUID=${CRYPTDEVICE}:storage root=/dev/mapper/storage-rootvol|g" /etc/default/grub
+    echo "GRUB_ENABLE_CRYPTODISK=y" >> /etc/default/grub
+    sed -i "s|GRUB_CMDLINE_LINUX\=\"|GRUB_CMDLINE_LINUX\=\"cryptdevice=/dev/disk/by-uuid/${CRYPTDEVICE}:${DNAME} root=/dev/mapper/${DGROUP}-root|g" /etc/default/grub
     mkinitcpio -p linux
     grub-mkconfig -o /boot/grub/grub.cfg
     grub-install ${DISK}
@@ -391,7 +393,7 @@ function install_bootloader(){
     sed -i 's|base udev|base udev encrypt lvm2|g' /etc/mkinitcpio.conf
 
     #Edit grub config to inform it where is the encrypted device and the root device
-    sed -i "s|GRUB_CMDLINE_LINUX\=\"|GRUB_CMDLINE_LINUX\=\"cryptdevice=UUID=${CRYPTDEVICE}:storage root=/dev/mapper/storage-rootvol|g" /etc/default/grub
+    sed -i "s|GRUB_CMDLINE_LINUX\=\"|GRUB_CMDLINE_LINUX\=\"cryptdevice=UUID=${CRYPTDEVICE}:${DGROUP} root=/dev/mapper/${DGROUP}-root|g" /etc/default/grub
 
     #mkinitcpio will generate initramfs-linux.img and initramfs-linux-fallback.img to be able to boot
     mkinitcpio -p linux
@@ -404,7 +406,7 @@ function install_bootloader(){
 function create_basic_user(){
   local USERNAME=$1
   local PASSWORD=$2
-  useradd -g users -m -s /bin/bash ${USERNAME} #Add a basic user
+  useradd -m -g users -G wheel,games,power,optical,storage,scanner,lp,audio,video -s /bin/bash ${USERNAME} #Add a basic user
   sleep 1
   echo -en "${PASSWORD}\n${PASSWORD}" | passwd "${USERNAME}" #Change the password of the user
   xdg-user-dirs-update #Create base folder like Document, Pictures, Desktop...etc
@@ -427,7 +429,7 @@ function install_sudo(){
 }
 
 function install_network(){
-  pacman -Syu networkmanager net-tools --noconfirm
+  pacman -Syu networkmanager net-tools netctl dialog wpa_supplicant --noconfirm
   systemctl enable NetworkManager
 }
 
@@ -500,7 +502,9 @@ shift
 #Delete the script
 function cleanup_before_exit () {
   exit
+  swapoff /dev/${DGROUP}/swap
   umount -R /mnt || true
+  cryptsetup luksClose ${DNAME}
   info "Cleaning up. Done"
   # reboot
 }
