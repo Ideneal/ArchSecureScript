@@ -350,7 +350,7 @@ function configure(){
   install_network
 
   echo "Install yaourt"
-  install_yaourt ${USERNAME}
+  install_yaourt
 
   # echo "Install xorg"
   # install_xorg
@@ -445,14 +445,11 @@ function install_network(){
 }
 
 function install_yaourt(){
-  local USERNAME=$1
-  sudo pacman -S --needed base-devel git wget yajl --noconfirm
-
-  #Execute command below as user. Run makepkg as root is not allowed.
-  su ${USERNAME} -c "git clone https://aur.archlinux.org/package-query.git /home/${USERNAME}/package-query"
-  su ${USERNAME} -c "cd /home/${USERNAME}/package-query && makepkg -si --noconfirm"
-  su ${USERNAME} -c "git clone https://aur.archlinux.org/yaourt.git /home/${USERNAME}/yaourt"
-  su ${USERNAME} -c "cd /home/${USERNAME}/yaourt && makepkg -si --noconfirm"
+  echo "" >> /etc/pacman.conf
+  echo "[archlinuxfr]" >> /etc/pacman.conf
+  echo "SigLevel = Never" >> /etc/pacman.conf
+  echo "Server = http://repo.archlinux.fr/\$arch" >> /etc/pacman.conf
+  pacman -Sy yaourt --noconfirm
 }
 
 function install_xorg(){
