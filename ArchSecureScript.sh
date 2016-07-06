@@ -341,7 +341,7 @@ function configure(){
 
   echo "Prepare bootloader"
   local CRYPTDEVICE="$(blkid -s UUID -o value ${DISK}2)" #Get UUID of the encrypted device
-  install_bootloader ${DISK} ${CRYPTDEVICE}
+  install_bootloader ${DISK} ${CRYPTDEVICE} ${PASSWORD}
 
   # echo "Create basic user"
   # create_basic_user ${USERNAME} ${PASSWORD}
@@ -374,6 +374,7 @@ function configure(){
 function install_bootloader(){
   local DISK=$1
   local CRYPTDEVICE=$2
+  local PASSWORD=$3
 
   #Enable lvm2-lvmetad which is a requierement to boot on encrypted lvm
   systemctl enable lvm2-lvmetad.service
@@ -383,10 +384,9 @@ function install_bootloader(){
     #In order for GRUB to open the LUKS partition without having the user enter his passphrase twice, we will use a keyfile
     dd bs=512 count=4 if=/dev/urandom of=/crypto_keyfile.bin
     chmod 000 /crypto_keyfile.bin
-    cryptsetup luksAddKey ${DISK}2 /crypto_keyfile.bin
+    echo "${PASSWORD}" | cryptsetup luksAddKey ${DISK}2 /crypto_keyfile.bin
 
     sed -i 's|base udev|base udev encrypt lvm2|g' /etc/mkinitcpio.conf
-    sed -i 's|BINARIES="|BINARIES="/usr/bin/btrfsck|g' /etc/mkinitcpio.conf
     sed -i 's|FILES="|FILES="/crypto_keyfile.bin|g' /etc/mkinitcpio.conf
 
     #Edit grub config to inform it where is the encrypted device and the root device
