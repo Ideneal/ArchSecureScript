@@ -430,9 +430,7 @@ function create_basic_user(){
   echo -en "${PASSWORD}\n${PASSWORD}" | passwd "${USERNAME}" #Change the password of the user
 
   #Create base folder like Document, Pictures, Desktop...etc
-  su ${USERNAME}
-  xdg-user-dirs-update
-  exit
+  su ${USERNAME} -c "xdg-user-dirs-update"
 }
 
 function install_sudo(){
