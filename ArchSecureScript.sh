@@ -345,10 +345,10 @@ function configure(){
 
   echo "Adding sudo to wheel group"
   install_sudo
-  #
-  # echo "Install network manager"
-  # install_network
-  #
+  
+  echo "Install network manager"
+  install_network
+
   # echo "Install yaourt"
   # install_yaourt
   #
@@ -442,8 +442,8 @@ function install_sudo(){
 }
 
 function install_network(){
-  pacman -Syu networkmanager net-tools netctl dialog wpa_supplicant --noconfirm
-  systemctl enable NetworkManager
+  pacman -Sy dhclient wicd wicd-gtk --noconfirm
+  systemctl enable wicd
 }
 
 function install_yaourt(){
