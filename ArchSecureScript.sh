@@ -345,13 +345,13 @@ function configure(){
 
   echo "Adding sudo to wheel group"
   install_sudo
-  
+
   echo "Install network manager"
   install_network
 
-  # echo "Install yaourt"
-  # install_yaourt
-  #
+  echo "Install yaourt"
+  install_yaourt ${USERNAME}
+
   # echo "Install xorg"
   # install_xorg
   #
@@ -447,6 +447,9 @@ function install_network(){
 }
 
 function install_yaourt(){
+  local USERNAME=$1
+  sudo pacman -S --needed base-devel git wget yajl --noconfirm
+
   #Execute command below as user. Run makepkg as root is not allowed.
   su ${USERNAME} -c "git clone https://aur.archlinux.org/package-query.git /home/${USERNAME}/package-query"
   su ${USERNAME} -c "cd /home/${USERNAME}/package-query && makepkg -si --noconfirm"
