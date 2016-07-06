@@ -386,7 +386,7 @@ function install_bootloader(){
     sed -i "s|GRUB_CMDLINE_LINUX\=\"|GRUB_CMDLINE_LINUX\=\"cryptdevice=/dev/disk/by-uuid/${CRYPTDEVICE}:${DNAME} root=/dev/mapper/${DGROUP}-root|g" /etc/default/grub
     mkinitcpio -p linux
     grub-mkconfig -o /boot/grub/grub.cfg
-    grub-install ${DISK}
+    grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --removable --recheck
   elif [[ ${UEFI} == false ]]; then
     grub-install --target=i386-pc ${DISK}
     #Edit mkinitcpio configuration to add encrypt and lvm2 module to HOOKS
