@@ -80,7 +80,7 @@ function setup(){
   notice "You can see your hard drives and partitions above"
   read -p "Select disk where install Archlinux : " -i "/dev/sd" -e DISK # -i "/dev/sd" allow autocompletion with tabulation
   read -p "Type a username for basic user : " -e USERNAME
-  read -p "Type a hostname for computers name : " -e NEW_HOSTNAME
+  read -p "Type a hostname for computers name : " -e HOSTNAME
   read -p "Type a password for encryption : " -e PASSWORD
 
   while [[ -z ${YN} ]]; do
@@ -150,7 +150,7 @@ function setup(){
   #Print informations and ask for confirmation
   info "Disk: ${DISK}"
   info "Username: ${USERNAME}"
-  info "Hostname: ${NEW_HOSTNAME}"
+  info "Hostname: ${HOSTNAME}"
   info "Password: ${PASSWORD}"
   info "VIRTUALBOX: ${VIRTUALBOX}"
   info "Graphic environment: ${GRAPH_ENV}"
@@ -250,9 +250,7 @@ function create_partitions(){
     mkpart primary ext4 1MB 200MB \
     mkpart primary ext4 200MB 100% \
     set 1 boot on \
-    set 2 lvm on \
-    name 1 boot \
-    name 2 root_lvm || emergency "Something went wrong with partitioning. You can investigate. Exit 1. "
+    set 2 lvm on
   fi
 }
 
@@ -319,7 +317,7 @@ function prepare_chroot(){
   #Chrooting in the new system
   info "Preparing chroot"
   cp $0 /mnt/ArchSecure.sh
-  arch-chroot /mnt ./ArchSecure.sh --configure ${DISK} ${USERNAME} ${PASSWORD} ${NEW_HOSTNAME} ${VIRTUALBOX} ${GRAPH_ENV} ${UEFI}
+  arch-chroot /mnt ./ArchSecure.sh --configure ${DISK} ${USERNAME} ${PASSWORD} ${HOSTNAME} ${VIRTUALBOX} ${GRAPH_ENV} ${UEFI}
 }
 
 function configure(){
@@ -327,30 +325,26 @@ function configure(){
   local DISK=$2
   local USERNAME=$3
   local PASSWORD=$4
-  local NEW_HOSTNAME=$5
+  local HOSTNAME=$5
   local VIRTUALBOX=$6
   local GRAPH_ENV=$7
   local UEFI=$8
-  echo "Exporting timezone"
-  export LANG=${LANG}
-  sed -i 's/#${LANG}/${LANG}/g' /etc/locale.gen
-  locale-gen
-  echo "LANG=${LANG}" > /etc/locale.conf
-  echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
-  ln -s /usr/share/zoneinfo/${CONTINENT}/${CITY} /etc/localtime
 
   echo "Prepare bootloader"
   local CRYPTDEVICE="$(blkid -s UUID -o value ${DISK}2)" #Get UUID of the encrypted device
   install_bootloader ${DISK} ${CRYPTDEVICE} ${PASSWORD}
 
-  # echo "Create basic user"
-  # create_basic_user ${USERNAME} ${PASSWORD}
-  #
-  # echo "Change Hostname"
-  # change_hostname ${NEW_HOSTNAME}
-  #
-  # echo "Adding sudo to ${USERNAME}"
-  # install_sudo ${USERNAME} ${NEW_HOSTNAME}
+  echo "Change base settings"
+  change_base_settings
+
+  echo "Change Hostname"
+  change_hostname ${HOSTNAME}
+
+  echo "Create basic user"
+  create_basic_user ${USERNAME} ${PASSWORD}
+
+  echo "Adding sudo to wheel group"
+  install_sudo
   #
   # echo "Install network manager"
   # install_network
@@ -412,29 +406,39 @@ function install_bootloader(){
   fi
 }
 
-function create_basic_user(){
-  local USERNAME=$1
-  local PASSWORD=$2
-  useradd -m -g users -G wheel,games,power,optical,storage,scanner,lp,audio,video -s /bin/bash ${USERNAME} #Add a basic user
-  sleep 1
-  echo -en "${PASSWORD}\n${PASSWORD}" | passwd "${USERNAME}" #Change the password of the user
-  xdg-user-dirs-update #Create base folder like Document, Pictures, Desktop...etc
+function change_base_settings(){
+    echo "Exporting timezone"
+    export LANG=${LANG}
+    sed -i "s|#${LANG}|${LANG}|g" /etc/locale.gen
+    locale-gen
+    echo "LANG=${LANG}" > /etc/locale.conf
+    echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
+    ln -s /usr/share/zoneinfo/${CONTINENT}/${CITY} /etc/localtime
 }
 
 function change_hostname(){
-  local NEW_HOSTNAME=$1;
-  echo "${NEW_HOSTNAME}" > /etc/hostname #Set up the new hostname
-  export HOSTNAME=${NEW_HOSTNAME} #Export the hostname for the current session.
+    local HOSTNAME=$1;
+    echo "${HOSTNAME}" > /etc/hostname #Set up the new hostname
+    export HOSTNAME=${HOSTNAME} #Export the hostname for the current session.
+}
+
+function create_basic_user(){
+  local USERNAME=$1
+  local PASSWORD=$2
+  useradd -m -g users -G wheel,games,power,optical,storage,disk,scanner,lp,sys,audio,video,network,http,ftp,mail -s /bin/bash ${USERNAME} #Add a basic user
+  sleep 1
+  echo -en "${PASSWORD}\n${PASSWORD}" | passwd "${USERNAME}" #Change the password of the user
+
+  #Create base folder like Document, Pictures, Desktop...etc
+  su ${USERNAME}
+  xdg-user-dirs-update
+  exit
 }
 
 function install_sudo(){
-  local USERNAME=$1
-  local NEW_HOSTNAME=$2
   pacman -S sudo --noconfirm
-
-  #Add the current user to sudo. Now, the current user will be able to use sudo.
-  # echo "${USERNAME}   ${NEW_HOSTNAME}=(ALL) ALL" >> /etc/sudoers
-  echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+  #Allow members of group wheel the sudo access
+  sed -i 's|# %wheel ALL=(ALL) ALL|%wheel ALL=(ALL) ALL|g' /etc/sudoers
 }
 
 function install_network(){
