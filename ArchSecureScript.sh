@@ -380,10 +380,19 @@ function install_bootloader(){
 
   #Install grub on disk
   if [[ ${UEFI} == true ]]; then
+    #In order for GRUB to open the LUKS partition without having the user enter his passphrase twice, we will use a keyfile
+    dd bs=512 count=4 if=/dev/urandom of=/crypto_keyfile.bin
+    chmod 000 /crypto_keyfile.bin
+    cryptsetup luksAddKey ${DISK}2 /crypto_keyfile.bin
+
     sed -i 's|base udev|base udev encrypt lvm2|g' /etc/mkinitcpio.conf
+    sed -i 's|BINARIES="|BINARIES="/usr/bin/btrfsck|g' /etc/mkinitcpio.conf
+    sed -i 's|FILES="|FILES="/crypto_keyfile.bin|g' /etc/mkinitcpio.conf
+
     #Edit grub config to inform it where is the encrypted device and the root device
     echo "GRUB_ENABLE_CRYPTODISK=y" >> /etc/default/grub
     sed -i "s|GRUB_CMDLINE_LINUX\=\"|GRUB_CMDLINE_LINUX\=\"cryptdevice=/dev/disk/by-uuid/${CRYPTDEVICE}:${DNAME} root=/dev/mapper/${DGROUP}-root|g" /etc/default/grub
+
     mkinitcpio -p linux
     grub-mkconfig -o /boot/grub/grub.cfg
     grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=grub --removable --recheck
