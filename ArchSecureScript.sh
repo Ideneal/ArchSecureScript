@@ -125,34 +125,11 @@ function setup(){
   unset YN
   unset response
 
-
-  while [[ -z ${YN} ]]; do
-    read -p "Install on virtualbox ? [Y/N] " response
-    case $response in
-        [yY][eE][sS][oO]|[yY])
-          local YN=true
-          VIRTUALBOX=true
-            ;;
-        [nN])
-          local YN=true
-          VIRTUALBOX=false
-          info "Okay right"
-          ;;
-        *)
-          echo "Mmmmh... don't understand, only Y or N are authorized. And I'm sure you can do it."
-            ;;
-    esac
-  done
-  unset YN
-  unset response
-
-
   #Print informations and ask for confirmation
   info "Disk: ${DISK}"
   info "Username: ${USERNAME}"
   info "Hostname: ${HOSTNAME}"
   info "Password: ${PASSWORD}"
-  info "VIRTUALBOX: ${VIRTUALBOX}"
   info "Graphic environment: ${GRAPH_ENV}"
   info "UEFI: ${UEFI}"
   if [[ -e ${DISK} ]]; then #Test if the choosen disk exist
@@ -317,7 +294,7 @@ function prepare_chroot(){
   #Chrooting in the new system
   info "Preparing chroot"
   cp $0 /mnt/ArchSecure.sh
-  arch-chroot /mnt ./ArchSecure.sh --configure ${DISK} ${USERNAME} ${PASSWORD} ${HOSTNAME} ${VIRTUALBOX} ${GRAPH_ENV} ${UEFI}
+  arch-chroot /mnt ./ArchSecure.sh --configure ${DISK} ${USERNAME} ${PASSWORD} ${HOSTNAME} ${GRAPH_ENV} ${UEFI}
 }
 
 function configure(){
@@ -326,9 +303,8 @@ function configure(){
   local USERNAME=$3
   local PASSWORD=$4
   local HOSTNAME=$5
-  local VIRTUALBOX=$6
-  local GRAPH_ENV=$7
-  local UEFI=$8
+  local GRAPH_ENV=$6
+  local UEFI=$7
 
   echo "Prepare bootloader"
   local CRYPTDEVICE="$(blkid -s UUID -o value ${DISK}2)" #Get UUID of the encrypted device
@@ -355,8 +331,8 @@ function configure(){
   echo "Install xorg"
   install_xorg
 
-  echo "Install Virtualbox graphics"
-  install_graphic_drivers $VIRTUALBOX
+  echo "Install graphic drivers"
+  install_graphic_drivers
 
   echo "Install display manager"
   install_display_manager
@@ -460,16 +436,11 @@ function install_xorg(){
 }
 
 function install_graphic_drivers(){
-  if [[ ${VIRTUALBOX} == true ]]; then
-    pacman -Syu virtualbox-guest-utils --noconfirm
-  else
-    pacman -Syu xf86-video-vesa --noconfirm
-  fi
+    pacman -Syu xf86-video-vesa xf86-video-nouveau xf86-video-intel xf86-video-amdgpu --noconfirm
 }
 
 function install_display_manager(){
-    pacman -S lxdm archlinux-lxdm-theme --noconfirm
-    sed -i 's|theme=Industrial|theme=ArchDark|g' /etc/lxdm/lxdm.conf
+    pacman -S lxdm --noconfirm
     systemctl enable lxdm
 }
 
