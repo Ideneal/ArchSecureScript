@@ -8,8 +8,8 @@ echo "╔═╗┬─┐┌─┐┬ ┬╔═╗┌─┐┌─┐┬ ┬┬─
 echo "╠═╣├┬┘│  ├─┤╚═╗├┤ │  │ │├┬┘├┤ ╚═╗│  ├┬┘│├─┘ │ "
 echo "╩ ╩┴└─└─┘┴ ┴╚═╝└─┘└─┘└─┘┴└─└─┘╚═╝└─┘┴└─┴┴   ┴ "
 
-__editor="Nicolas Briand & Anthony Thuilliez"
-__version="1.0.0"
+__editor="Nicolas Briand, Anthony Thuilliez, Daniele Pedone"
+__version="1.0.12"
 
 # Set magic variables for current file & dir
 __dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,7 +103,7 @@ function setup(){
   unset response
 
   while [[ -z ${YN} ]]; do
-    read -p "Which environment do you want : [kde,gnome,lxde] " response
+    read -p "Which environment do you want : [kde,gnome,lxde,xfce,cinnamon,budgie,mate,deepin] " response
     case $response in
         kde|Kde|KDE)
           local YN=true
@@ -116,6 +116,26 @@ function setup(){
         lxde|Lxde|LXDE)
           local YN=true
           GRAPH_ENV="lxde"
+          ;;
+        xfce|Xfce|XFCE)
+          local YN=true
+          GRAPH_ENV="xfce"
+          ;;
+        cinnamon|Cinnamon|CINNAMON)
+          local YN=true
+          GRAPH_ENV="cinnamon"
+          ;;
+        budgie|Budgie|BUDGIE)
+          local YN=true
+          GRAPH_ENV="budgie"
+          ;;
+        mate|Mate|MATE)
+          local YN=true
+          GRAPH_ENV="mate"
+          ;;
+        deepin|Deepin|DEEPIN)
+          local YN=true
+          GRAPH_ENV="deepin"
           ;;
         *)
           echo "Mmmmh... don't understand, only Y or N are authorized. And I'm sure you can do it."
@@ -337,11 +357,11 @@ function configure(){
   echo "Install display manager"
   install_display_manager
 
-  # echo "Install graphic environment"
-  # install_graphic_environment ${GRAPH_ENV}
-  #
-  # echo "Clean up installation"
-  # clean_desktop
+  echo "Install graphic environment"
+  install_graphic_environment ${GRAPH_ENV} ${USERNAME}
+
+  echo "Clean up installation"
+  clean_desktop
 }
 
 function install_bootloader(){
@@ -445,17 +465,46 @@ function install_display_manager(){
 }
 
 function install_graphic_environment(){
+  local GRAPH_ENV=$1
+  local USERNAME=$2
+
   #Install the graphic environment
   if [[ ${GRAPH_ENV} == "kde" ]]; then
-    pacman -Syu plasma kde-applications sddm yakuake firefox breeze-gtk kde-gtk-config
-    systemctl enable sddm
+    change_dmrc ${USERNAME} "kde-plasma"
+    pacman -Syu plasma kde-applications kde-gtk-config --noconfirm
   elif [[ ${GRAPH_ENV} == "gnome" ]]; then
-    pacman -Syu gnome gnome-extra gdm
-    systemctl enable gdm
+    change_dmrc ${USERNAME} "gnome"
+    pacman -Syu gnome gnome-extra --noconfirm
   elif [[ ${GRAPH_ENV} == "lxde" ]]; then
-    pacman -S lxde lxdm --noconfirm
-    systemctl enable lxdm
+    change_dmrc ${USERNAME} "lxde"
+    pacman -S lxde --noconfirm
+  elif [[ ${GRAPH_ENV} == "xfce" ]]; then
+    change_dmrc ${USERNAME} "xfce"
+    pacman -Syu xfce4 xfce4-goodies --noconfirm
+  elif [[ ${GRAPH_ENV} == "cinnamon" ]]; then
+    change_dmrc ${USERNAME} "cinnamon"
+    pacman -Syu cinnamon nemo-fileroller --noconfirm
+  elif [[ ${GRAPH_ENV} == "budgie" ]]; then
+    change_dmrc ${USERNAME} "budgie-desktop"
+    pacman -Syu budgie-desktop --noconfirm
+  elif [[ ${GRAPH_ENV} == "mate" ]]; then
+    change_dmrc ${USERNAME} "mate"
+    pacman -Syu mate mate-extra --noconfirm
+  elif [[ ${GRAPH_ENV} == "deepin" ]]; then
+    change_dmrc ${USERNAME} "deepin"
+    pacman -Syu deepin deepin-extra --noconfirm
   fi
+}
+
+function change_dmrc(){
+  local USERNAME=$1
+  local DESKTOP_SESSION=$2
+
+  # Change the Desktop session
+  su ${USERNAME} -c "echo '[Desktop]' >> ~./dmrc"
+  su ${USERNAME} -c "echo 'Session=${DESKTOP_SESSION}' >> ~./dmrc"
+  su ${USERNAME} -c "echo 'Language=${LANG}' >> ~./dmrc"
+  su ${USERNAME} -c "chmod +x ~./dmrc"
 }
 
 function clean_desktop(){

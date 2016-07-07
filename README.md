@@ -11,9 +11,7 @@ Automatic installation of Archlinux with LVM on LUKS
 - Install Xorg
 - Install and configure SUDO
 - Install AUR manager : Yaourt
-- Choose interactively between Virtualbox drivers or generics drivers
-- Choose interactively between KDE, LXDE and GNOME interfaces.
+- Install generic video drivers
+- Choose interactively between KDE, LXDE, GNOME, XFCE, CINNAMON, BUDGIE, MATE, DEEPIN interfaces.
 - Choose interactively your username, hostname and passwords
-
-##WARNING
-/!\ UEFI compatibility not ready
+- Choose UEFI boot mode
