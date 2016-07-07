@@ -352,12 +352,15 @@ function configure(){
   echo "Install yaourt"
   install_yaourt
 
-  # echo "Install xorg"
-  # install_xorg
-  #
-  # echo "Install Virtualbox graphics"
-  # install_graphic_drivers $VIRTUALBOX
-  #
+  echo "Install xorg"
+  install_xorg
+
+  echo "Install Virtualbox graphics"
+  install_graphic_drivers $VIRTUALBOX
+
+  echo "Install display manager"
+  install_display_manager
+
   # echo "Install graphic environment"
   # install_graphic_environment ${GRAPH_ENV}
   #
@@ -453,9 +456,8 @@ function install_yaourt(){
 }
 
 function install_xorg(){
-  pacman -Syu xorg-server xorg-xinit xorg-server-utils --noconfirm
+  pacman -Syu xorg-server xorg-xinit xorg-server-utils xorg-twm xorg-xclock xterm --noconfirm
 }
-
 
 function install_graphic_drivers(){
   if [[ ${VIRTUALBOX} == true ]]; then
@@ -463,6 +465,12 @@ function install_graphic_drivers(){
   else
     pacman -Syu xf86-video-vesa --noconfirm
   fi
+}
+
+function install_display_manager(){
+    pacman -S lxdm archlinux-lxdm-theme --noconfirm
+    sed -i 's|theme=Industrial|theme=ArchDark|g' /etc/lxdm/lxdm.conf
+    systemctl enable lxdm
 }
 
 function install_graphic_environment(){
