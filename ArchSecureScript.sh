@@ -9,7 +9,7 @@ echo "╠═╣├┬┘│  ├─┤╚═╗├┤ │  │ │├┬┘├�
 echo "╩ ╩┴└─└─┘┴ ┴╚═╝└─┘└─┘└─┘┴└─└─┘╚═╝└─┘┴└─┴┴   ┴ "
 
 __editor="Nicolas Briand, Anthony Thuilliez, Daniele Pedone"
-__version="1.0.12"
+__version="1.0.13"
 
 # Set magic variables for current file & dir
 __dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -501,10 +501,12 @@ function change_dmrc(){
   local DESKTOP_SESSION=$2
 
   # Change the Desktop session
-  su ${USERNAME} -c "echo '[Desktop]' >> ~./dmrc"
-  su ${USERNAME} -c "echo 'Session=${DESKTOP_SESSION}' >> ~./dmrc"
-  su ${USERNAME} -c "echo 'Language=${LANG}' >> ~./dmrc"
-  su ${USERNAME} -c "chmod +x ~./dmrc"
+  echo "[Desktop]" >> /home/${USERNAME}/.dmrc
+  echo "Session=${DESKTOP_SESSION}" >> /home/${USERNAME}/.dmrc
+  echo "Language=${LANG}" >> /home/${USERNAME}/.dmrc
+
+  chmod +x /home/${USERNAME}/.dmrc
+  chown ${USERNAME}:users /home/${USERNAME}/.dmrc
 }
 
 function clean_desktop(){
