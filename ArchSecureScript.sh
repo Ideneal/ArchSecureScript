@@ -339,6 +339,9 @@ function configure(){
   echo "Create basic user"
   create_basic_user ${USERNAME} ${PASSWORD}
 
+  echo "Disable root login"
+  disable_root
+
   echo "Adding sudo to wheel group"
   install_sudo
 
@@ -430,6 +433,10 @@ function create_basic_user(){
 
   #Create base folder like Document, Pictures, Desktop...etc
   su ${USERNAME} -c "xdg-user-dirs-update"
+}
+
+function disable_root(){
+  passwd -l root
 }
 
 function install_sudo(){
