@@ -470,7 +470,7 @@ function install_graphic_environment(){
 
   #Install the graphic environment
   if [[ ${GRAPH_ENV} == "kde" ]]; then
-    change_dmrc ${USERNAME} "kde-plasma"
+    change_dmrc ${USERNAME} "plasma"
     pacman -Syu plasma kde-applications kde-gtk-config --noconfirm
   elif [[ ${GRAPH_ENV} == "gnome" ]]; then
     change_dmrc ${USERNAME} "gnome"
