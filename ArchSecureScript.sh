@@ -79,9 +79,41 @@ function setup(){
   parted -l #List partition to help user to choose
   notice "You can see your hard drives and partitions above"
   read -p "Select disk where install Archlinux : " -i "/dev/sd" -e DISK # -i "/dev/sd" allow autocompletion with tabulation
-  read -p "Type a username for basic user : " -e USERNAME
+
+  while [[ -z $YN ]]; do
+    read -p "Type a password for the encryption : " -s PASSWORD
+    echo ""
+    read -p "Retype a password for the encryption : " -s PASSWORD_RETYPE
+    echo ""
+    if [[ "$PASSWORD" = "$PASSWORD_RETYPE" ]]; then
+      local YN=true
+    else
+      echo ""
+      echo "Password mismatch. Try again."
+      echo ""
+    fi
+  done
+  unset YN
+  unset PASSWORD_RETYPE
+
   read -p "Type a hostname for computers name : " -e HOSTNAME
-  read -p "Type a password for encryption : " -e PASSWORD
+  read -p "Type a username for basic user : " -e USERNAME
+
+  while [[ -z $YN ]]; do
+    read -p "Type a password for the user : " -s USER_PASSWORD
+    echo ""
+    read -p "Retype a password for the user : " -s USER_PASSWORD_RETYPE
+    echo ""
+    if [[ "$USER_PASSWORD" = "$USER_PASSWORD_RETYPE" ]]; then
+      local YN=true
+    else
+      echo ""
+      echo "Password mismatch. Try again."
+      echo ""
+    fi
+  done
+  unset YN
+  unset USER_PASSWORD_RETYPE
 
   while [[ -z ${YN} ]]; do
     read -p "UEFI mode ? [Y/N] " response
@@ -149,7 +181,6 @@ function setup(){
   info "Disk: ${DISK}"
   info "Username: ${USERNAME}"
   info "Hostname: ${HOSTNAME}"
-  info "Password: ${PASSWORD}"
   info "Graphic environment: ${GRAPH_ENV}"
   info "UEFI: ${UEFI}"
   if [[ -e ${DISK} ]]; then #Test if the choosen disk exist
@@ -314,17 +345,18 @@ function prepare_chroot(){
   #Chrooting in the new system
   info "Preparing chroot"
   cp $0 /mnt/ArchSecure.sh
-  arch-chroot /mnt ./ArchSecure.sh --configure ${DISK} ${USERNAME} ${PASSWORD} ${HOSTNAME} ${GRAPH_ENV} ${UEFI}
+  arch-chroot /mnt ./ArchSecure.sh --configure ${DISK} ${PASSWORD} ${HOSTNAME} ${USERNAME} ${USER_PASSWORD} ${GRAPH_ENV} ${UEFI}
 }
 
 function configure(){
   #Here we are in chroot
   local DISK=$2
-  local USERNAME=$3
-  local PASSWORD=$4
-  local HOSTNAME=$5
-  local GRAPH_ENV=$6
-  local UEFI=$7
+  local PASSWORD=$3
+  local HOSTNAME=$4
+  local USERNAME=$5
+  local USER_PASSWORD=$6
+  local GRAPH_ENV=$7
+  local UEFI=$8
 
   echo "Prepare bootloader"
   local CRYPTDEVICE="$(blkid -s UUID -o value ${DISK}2)" #Get UUID of the encrypted device
@@ -337,7 +369,7 @@ function configure(){
   change_hostname ${HOSTNAME}
 
   echo "Create basic user"
-  create_basic_user ${USERNAME} ${PASSWORD}
+  create_basic_user ${USERNAME} ${USER_PASSWORD}
 
   echo "Disable root login"
   disable_root
